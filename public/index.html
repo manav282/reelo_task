@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Question Paper Generator</title>
+</head>
+
+<body>
+    <h1>Question Paper Generator</h1>
+
+    <div id="options">
+        <label for="paperType">Select Paper Type:</label>
+        <select id="paperType" name="paperType">
+            <option value="difficulty">Difficulty-wise</option>
+            <option value="subject">Subject-wise</option>
+        </select>
+    </div>
+
+    <button id="toggleFormBtn" onclick="toggleForm()">Add New Question</button>
+
+    <!-- Form to add new questions -->
+    <form id="addQuestionForm" style="display: none;">
+        <h2>Add New Question</h2>
+        <label for="question">Question:</label>
+        <textarea id="question" name="question" rows="4" required></textarea>
+
+        <label for="subject">Subject:</label>
+        <input type="text" id="subject" name="subject" required>
+
+        <label for="topic">Topic:</label>
+        <input type="text" id="topic" name="topic" required>
+
+        <label for="difficulty">Difficulty:</label>
+        <select id="difficulty" name="difficulty" required>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+        </select>
+
+        <label for="marks">Marks:</label>
+        <input type="number" id="marks" name="marks" required>
+        <br>
+        <button type="button" onclick="addQuestion()">Add Question</button>
+        <button type="button" onclick="cancel()">Cancel</button>
+    </form>
+
+
+    <form id="questionPaperForm" style="display: block;">
+        <label for="totalMarks">Total Marks:</label>
+        <input type="number" id="totalMarks" name="totalMarks" required>
+
+        <br>
+
+        <label for="easy">Easy (%):</label>
+        <input type="number" id="easy" name="easy" required>
+
+        <br>
+
+        <label for="medium">Medium (%):</label>
+        <input type="number" id="medium" name="medium" required>
+
+        <br>
+
+        <label for="hard">Hard (%):</label>
+        <input type="number" id="hard" name="hard" required>
+
+        <br>
+
+        <button type="button" onclick="generateQuestionPaper()">Generate Question Paper</button>
+    </form>
+
+    <form id="subjectForm" style="display: none;">
+        <!-- New dropdown for subjects -->
+        <label for="totalMarks1">Total Marks:</label>
+        <input type="number" id="totalMarks1" required>
+
+        <br>
+        <label for="subject">Subject:</label>
+        <select id="subjectList" required>
+            <!-- Options will be dynamically added here using JavaScript -->
+        </select>
+
+        <!-- New container for subject percentages inputs -->
+        <div id="subjectPercentagesContainer"></div>
+
+        <!-- Button to generate question paper -->
+        <button type="button" onclick="generateQuestionPaperBySubject()">Generate Question Paper</button>
+    </form>
+
+    <div id="questionPaperResult"></div>
+    <div id="errorContainer" style="color: red;"></div>
+
+    <script>
+        async function generateQuestionPaper() {
+            const totalMarks = document.getElementById('totalMarks').value;
+            const easyPercentage = document.getElementById('easy').value;
+            const mediumPercentage = document.getElementById('medium').value;
+            const hardPercentage = document.getElementById('hard').value;
+
+            const difficultyDistribution = {
+                "Easy": parseInt(easyPercentage),
+                "Medium": parseInt(mediumPercentage),
+                "Hard": parseInt(hardPercentage)
+            };
+
+            const sumOfPercentages = parseInt(easyPercentage) + parseInt(mediumPercentage) + parseInt(hardPercentage);
+
+            if (sumOfPercentages != 100) {
+                document.getElementById('errorContainer').innerText = 'Sum of difficulty percentages must be 100';
+                return;
+            }
+
+            // Clear error message if there was one
+            document.getElementById('errorContainer').innerText = '';
+
+            try {
+                const response = await fetch('http://localhost:3000/generate-paper', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        totalMarks,
+                        difficultyDistribution
+                    }),
+                });
+
+                const result = await response.json();
+                displayResult(result.questionPaper);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('errorContainer').innerText = 'An error occurred while generating the question paper';
+            }
+        }
+
+        async function generateQuestionPaperBySubject() {
+            const totalMarks = document.getElementById('totalMarks1').value;
+
+            const subjectPercentages = {};
+            let sumOfPercentages = 0;
+            const inputFields = document.querySelectorAll('[name^="subjectPercentages["]');
+            inputFields.forEach(input => {
+                const subjectName = input.id;
+                const percentage = parseInt(input.value, 10);
+                if (!isNaN(percentage)) {
+                    subjectPercentages[subjectName] = percentage;
+                    sumOfPercentages = sumOfPercentages + percentage;
+                }
+            });
+
+            if (sumOfPercentages != 100) {
+                console.log(sumOfPercentages);
+                document.getElementById('errorContainer').innerText = 'Sum of percentages must be 100';
+                return;
+            }
+
+            // Clear error message if there was one
+            document.getElementById('errorContainer').innerText = '';
+
+            try {
+                const response = await fetch('http://localhost:3000/generate-paper-subject', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        totalMarks,
+                        subjectPercentages
+                    }),
+                });
+
+                const result = await response.json();
+                displayResult(result.questionPaper);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('errorContainer').innerText = 'An error occurred while generating the question paper';
+            }
+        }
+
+        function displayResult(questionPaper) {
+            const resultDiv = document.getElementById('questionPaperResult');
+            resultDiv.innerHTML = '<h2>Generated Question Paper:</h2>';
+
+            if (questionPaper.length === 0) {
+                resultDiv.innerHTML += '<p>No questions found for the specified criteria.</p>';
+            } else {
+                questionPaper.forEach((question, index) => {
+                    const questionNumber = index + 1;
+
+                    const questionDiv = document.createElement('div');
+                    questionDiv.classList.add('question');
+
+                    questionDiv.innerHTML = `
+                        <h3>Question ${questionNumber}: </h3>
+                        <p>${question.question}</p><br>
+                        <p><h3>Topic:</h3> ${question.topic}</p>
+                        <p><h3>Difficulty:</h3> ${question.difficulty}</p>
+                        <p style="float:right;">[${question.marks}]</p>
+                    `;
+
+                    resultDiv.appendChild(questionDiv);
+                });
+            }
+        }
+
+        function toggleForm() {
+            const form = document.getElementById('addQuestionForm');
+            const form2 = document.getElementById('questionPaperForm');
+            const subjectForm = document.getElementById('subjectForm');
+            form.style.display = 'block';
+            form2.style.display = 'none';
+            subjectForm.style.display = 'none';
+        }
+
+        function cancel() {
+            const form = document.getElementById('addQuestionForm');
+            const form2 = document.getElementById('questionPaperForm');
+            const subjectForm = document.getElementById('subjectForm');
+            form.style.display = 'none';
+            form2.style.display = 'block';
+            subjectForm.style.display = 'none';
+        }
+
+        function addQuestion() {
+            const form = document.getElementById('addQuestionForm');
+            const questionData = {
+                question: form.question.value,
+                subject: form.subject.value,
+                topic: form.topic.value,
+                difficulty: form.difficulty.value,
+                marks: parseInt(form.marks.value)
+            };
+
+            if (!form.question.value || !form.subject.value || !form.topic.value || !form.difficulty.value || !form.marks.value) {
+                document.getElementById('errorContainer').innerText = 'Please enter all the fields';
+                return;
+            }
+
+            // Send the new question data to the server
+            fetch('/add-question', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(questionData),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Success:', data);
+                    // Hide the form after successful addition
+                    form.style.display = 'none';
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+        }
+
+        // Add an event listener for the paper type selection
+        document.getElementById('paperType').addEventListener('change', function () {
+            const difficultyForm = document.getElementById('questionPaperForm');
+            const subjectForm = document.getElementById('subjectForm');
+
+            if (this.value === 'difficulty') {
+                difficultyForm.style.display = 'block';
+                subjectForm.style.display = 'none';
+            } else {
+                difficultyForm.style.display = 'none';
+                subjectForm.style.display = 'block';
+            }
+        });
+
+        document.getElementById('subjectList').addEventListener('change', function () {
+            const selectedSubject = this.value;
+            addSubjectInputField(selectedSubject);
+        });
+
+        function addSubjectInputField(subject) {
+            const container = document.getElementById('subjectPercentagesContainer');
+
+            // Create a new label for the subject
+            const label = document.createElement('label');
+            label.textContent = `${subject} Percentage:`;
+
+            // Create a new input field for the subject percentage
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.min = 0;
+            input.max = 100;
+            input.name = `subjectPercentages[${subject}]`;
+            input.id = subject;
+
+            // Append the label and input to the container
+            container.appendChild(label);
+            container.appendChild(input);
+
+            // Add a line break for better spacing
+            container.appendChild(document.createElement('br'));
+
+            removeSubjectFromDropdown(subject);
+        }
+
+        function removeSubjectFromDropdown(subject) {
+            const subjectDropdown = document.getElementById('subjectList');
+
+            // Find and remove the selected subject from the dropdown options
+            Array.from(subjectDropdown.options).forEach(option => {
+                if (option.value === subject) {
+                    option.remove();
+                }
+            });
+        }
+
+        function populateSubjectDropdown() {
+            fetch('/subjects')
+                .then(response => response.json())
+                .then(data => {
+                    const subjectDropdown = document.getElementById('subjectList');
+                    const subjects = data.subjects;
+                    console.log(subjects);
+                    // Populate dropdown options
+                    subjectDropdown.innerHTML = '';
+                    subjects.forEach(subject => {
+                        const option = document.createElement('option');
+                        option.value = subject;
+                        option.textContent = subject;
+                        // console.log('Option:', option);
+                        subjectDropdown.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('Error fetching subjects:', error));
+        }
+
+        // Call the function to populate the dropdown when the page loads
+        window.onload = populateSubjectDropdown;
+
+        // Add an event listener to dynamically generate input fields when a subject is selected
+        document.getElementById('subject').addEventListener('change', function () {
+            const selectedSubject = this.value;
+            addSubjectInputField(selectedSubject);
+        });
+
+    </script>
+</body>
+
+</html>
